@@ -1,0 +1,17 @@
+<html>
+<head>
+</head>
+<body>
+<form action="/upload" enctype="multipart/form-data" method="post">
+    <div style="padding-bottom: 10px">Select .gz file to decrypt it's contents right inside the browser with wonderful Pako.js library!</div>
+    <input type="text" name="title">
+    <input type="file" id="files" name="files[]" multiple>
+    <output id="list"></output>
+    <output id="fileContents"></output>
+    <input type="submit" value="Upload">
+
+    <script src="/bower_components/pako/dist/pako.js"></script>
+    <script src="/client.js"></script>
+</form>
+</body>
+</html>

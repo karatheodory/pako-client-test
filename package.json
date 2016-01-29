@@ -1,0 +1,19 @@
+{
+  "name": "file-upload-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "4.13.4",
+    "formidable": "1.0.17"
+  },
+  "devDependencies": {
+    "connect-slow": "0.2.2"
+  }
+}
