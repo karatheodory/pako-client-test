@@ -24,8 +24,8 @@ app.post('/upload', (request, response) => {
         console.log('Started upload: ' + originalFileName + ', size: ' + fileSize + ' bytes');
 
         fs.readFile(oldPath, (err, data) => {
-            fs.writeFile(newPath, data, function(err) {
-                fs.unlink(oldPath, function(err) {
+            fs.writeFile(newPath, data, (err) => {
+                fs.unlink(oldPath, (err) => {
                     if (err) {
                         response
                             .status(500)

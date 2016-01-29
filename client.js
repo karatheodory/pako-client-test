@@ -95,10 +95,11 @@ function onFileListChanged(e) {
         outHtml.push('<li><strong>', encodeURIComponent(f.name), '</strong> (', f.type || 'n/a', ') - ',
             f.size, ' bytes, last modified: ',
             f.lastModifiedDate.toLocaleDateString(), '</li>');
-
-        convertBlobToUintArray(f, (error, result) => {
-            processFile(result);
-        });
+        if (f.name.endsWith('txt.gz')) {
+            convertBlobToUintArray(f, (error, result) => {
+                processFile(result);
+            });
+        }
     }
     document.getElementById('list').innerHTML = '<ul>' + outHtml.join('') + '</ul>';
 }
