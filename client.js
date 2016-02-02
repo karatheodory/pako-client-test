@@ -31,20 +31,55 @@ var Compressor = function() {
     };
 };
 
-var Decompressor = function() {
+function convertBlobToUintArray(blob, callback) {
+    var fileReader = new FileReader();
+    fileReader.onload = function(progressEvent) {
+        var arrayBuffer = fileReader.result;
+        var uintArray = new Uint8Array(arrayBuffer);
+        callback(null, uintArray);
+    };
+    fileReader.readAsArrayBuffer(blob);
+}
+
+var Gunzipper = function (gzipFile, chunkSize) {
     var self = this;
+
+    self.file = gzipFile;
+    self.chunkSize = chunkSize;
+    self.currentPosition = 0;
     self.decompressor = new pako.Inflate({
         gzip: true
     });
 
-    self.decompressChunk = function(chunk, isEndChunk) {
-        const mode = isEndChunk ? pako.Z_STREAM_END : pako.Z_SYNC_FLUSH;
-        if (self.decompressor.push(chunk, mode)) {
-            return self.decompressor.result;
-        } else {
-            console.error('Error decompressing data.');
-            return null;
+    self.decompress = function (numChunks, callback) {
+        var file = self.file;
+        var lastByteNumber = file.size - 1;
+        var currentPosition = self.currentPosition;
+
+        var endPosition = currentPosition + numChunks * self.chunkSize;
+        if (endPosition > lastByteNumber) {
+            endPosition = lastByteNumber;
         }
+        var isAnythingLeft = endPosition !== lastByteNumber;
+        console.log('Reading chunk from ' + currentPosition + ' to ' + endPosition);
+        console.log('have' + (isAnythingLeft ? '' : ' nothing') + ' more');
+        var chunkBlob = file.slice(currentPosition, endPosition);
+        convertBlobToUintArray(chunkBlob, function (error, chunkArray) {
+            if (self.decompressor.push(chunkArray, pako.Z_SYNC_FLUSH)) {
+                // CAUTION! If set to the endPosition + 1, the CRC check will fail, I don't know why.
+                self.currentPosition = endPosition;
+                callback(null, {
+                    decompressedData: self.decompressor.result,
+                    totalBytesRead: endPosition,
+                    isAnythingLeft: isAnythingLeft
+                });
+                if (!isAnythingLeft) {
+                    self.decompressor.push([], pako.Z_STREAM_END);
+                }
+            } else {
+                callback(new Error('Failed to decompress data.'));
+            }
+        });
     };
 };
 
@@ -62,29 +97,32 @@ function putFileStringsToOutput(stringArray) {
 }
 
 function processFile(file) {
-    var decompressor = new Decompressor();
-    var CHUNK_SIZE = 1024;
-    const upperBorder = file.length > CHUNK_SIZE ? file.length - CHUNK_SIZE : file.length;
+    console.log('Processing file of ' + file.length + ' bytes.');
+    var gunzipper = new Gunzipper(file, 1024);
     var resultStrings = [];
 
-    for (var i = 0; i < upperBorder; i += CHUNK_SIZE) {
-        var chunk = file.slice(i, i + CHUNK_SIZE);
-        var isEndChunk = (i + CHUNK_SIZE >= file.length);
-        var decompressedData = decompressor.decompressChunk(chunk, isEndChunk);
-        var dataString = String.fromCharCode.apply(null, new Uint16Array(decompressedData));
-        resultStrings.push(dataString);
-    }
-    putFileStringsToOutput(resultStrings)
-}
+    // Reads file recursively.
+    var readCallback = function(error, result) {
+        if (error) {
+            alert(error);
+        } else {
+            var data = result.decompressedData;
+            var dataString = String.fromCharCode.apply(null, new Uint16Array(data));
+            resultStrings.push(dataString);
 
-function convertBlobToUintArray(blob, callback) {
-    var fileReader = new FileReader();
-    fileReader.onload = function(progressEvent) {
-        var arrayBuffer = fileReader.result;
-        var uintArray = new Uint8Array(arrayBuffer);
-        callback(null, uintArray);
+            if (result.isAnythingLeft) {
+                setTimeout(function () {
+                    gunzipper.decompress(2, readCallback);
+                })
+            } else {
+                console.log('Read completed');
+                putFileStringsToOutput(resultStrings);
+            }
+        }
     };
-    fileReader.readAsArrayBuffer(blob);
+
+    gunzipper.decompress(1, readCallback);
+    putFileStringsToOutput(resultStrings)
 }
 
 function onFileListChanged(e) {
@@ -96,9 +134,7 @@ function onFileListChanged(e) {
             f.size, ' bytes, last modified: ',
             f.lastModifiedDate.toLocaleDateString(), '</li>');
         if (f.name.endsWith('txt.gz')) {
-            convertBlobToUintArray(f, (error, result) => {
-                processFile(result);
-            });
+            processFile(f);
         }
     }
     document.getElementById('list').innerHTML = '<ul>' + outHtml.join('') + '</ul>';
