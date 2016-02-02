@@ -4,10 +4,12 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
     self.file = gzipFileBlob;
     self.chunkSize = chunkSize;
     self.currentPosition = 0;
+
+    // It is better not to do so and split the class onto two different,
+    // for compression and for decompression.
     self.decompressor = new pako.Inflate({
         gzip: true
     });
-    // TODO: Extract base and remove copy-paste.
     self.compressor = new pako.Deflate({
         gzip: true,
         header: {
@@ -25,7 +27,7 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
         fileReader.readAsArrayBuffer(blob);
     }
 
-    self.decompress = function (numChunks, callback) {
+    self._forNumChunks = function(numChunks, callback) {
         var file = self.file;
         var lastByteNumber = file.size - 1;
         var currentPosition = self.currentPosition;
@@ -39,6 +41,21 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
         console.log('have' + (isAnythingLeft ? '' : ' nothing') + ' more');
         var chunkBlob = file.slice(currentPosition, endPosition + 1);
         convertBlobToUintArray(chunkBlob, function (error, chunkArray) {
+            callback(error, {
+                isAnythingLeft: isAnythingLeft,
+                chunkArray: chunkArray,
+                currentPosition: currentPosition,
+                endPosition: endPosition
+            });
+        });
+    };
+
+    self.decompress = function (numChunks, callback) {
+        self._forNumChunks(numChunks, function (error, chunkDescriptor) {
+            var isAnythingLeft = chunkDescriptor.isAnythingLeft;
+            var chunkArray = chunkDescriptor.chunkArray;
+            var endPosition = chunkDescriptor.endPosition;
+
             var mode = isAnythingLeft ? pako.Z_SYNC_FLUSH : true;
             if (self.decompressor.push(chunkArray, mode)) {
                 self.currentPosition = endPosition + 1;
@@ -54,19 +71,11 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
     };
 
     self.compress = function (numChunks, callback) {
-        var file = self.file;
-        var lastByteNumber = file.size - 1;
-        var currentPosition = self.currentPosition;
+        self._forNumChunks(numChunks, function (error, chunkDescriptor) {
+            var isAnythingLeft = chunkDescriptor.isAnythingLeft;
+            var chunkArray = chunkDescriptor.chunkArray;
+            var endPosition = chunkDescriptor.endPosition;
 
-        var endPosition = currentPosition + numChunks * self.chunkSize;
-        if (endPosition > lastByteNumber) {
-            endPosition = lastByteNumber;
-        }
-        var isAnythingLeft = endPosition !== lastByteNumber;
-        console.log('Reading chunk from ' + currentPosition + ' to ' + endPosition);
-        console.log('have' + (isAnythingLeft ? '' : ' nothing') + ' more');
-        var chunkBlob = file.slice(currentPosition, endPosition + 1);
-        convertBlobToUintArray(chunkBlob, function (error, chunkArray) {
             var mode = isAnythingLeft ? pako.Z_SYNC_FLUSH : true;
             if (self.compressor.push(chunkArray, mode)) {
                 self.currentPosition = endPosition + 1;
@@ -76,7 +85,7 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
                     isAnythingLeft: isAnythingLeft
                 });
             } else {
-                callback(new Error('Failed to decompress data.'));
+                callback(new Error('Failed to compress data.'));
             }
         });
     }
