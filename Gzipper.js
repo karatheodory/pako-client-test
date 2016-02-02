@@ -37,19 +37,16 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
         var isAnythingLeft = endPosition !== lastByteNumber;
         console.log('Reading chunk from ' + currentPosition + ' to ' + endPosition);
         console.log('have' + (isAnythingLeft ? '' : ' nothing') + ' more');
-        var chunkBlob = file.slice(currentPosition, endPosition);
+        var chunkBlob = file.slice(currentPosition, endPosition + 1);
         convertBlobToUintArray(chunkBlob, function (error, chunkArray) {
-            if (self.decompressor.push(chunkArray, pako.Z_SYNC_FLUSH)) {
-                // CAUTION! If set to the endPosition + 1, the CRC check will fail, I don't know why.
-                self.currentPosition = endPosition;
+            var mode = isAnythingLeft ? pako.Z_SYNC_FLUSH : true;
+            if (self.decompressor.push(chunkArray, mode)) {
+                self.currentPosition = endPosition + 1;
                 callback(null, {
                     data: self.decompressor.result,
                     lastByteRead: endPosition,
                     isAnythingLeft: isAnythingLeft
                 });
-                if (!isAnythingLeft) {
-                    self.decompressor.push([], pako.Z_STREAM_END);
-                }
             } else {
                 callback(new Error('Failed to decompress data.'));
             }
@@ -68,19 +65,16 @@ Gzipper = function (gzipFileBlob, fileName, chunkSize) {
         var isAnythingLeft = endPosition !== lastByteNumber;
         console.log('Reading chunk from ' + currentPosition + ' to ' + endPosition);
         console.log('have' + (isAnythingLeft ? '' : ' nothing') + ' more');
-        var chunkBlob = file.slice(currentPosition, endPosition);
+        var chunkBlob = file.slice(currentPosition, endPosition + 1);
         convertBlobToUintArray(chunkBlob, function (error, chunkArray) {
-            if (self.compressor.push(chunkArray, pako.Z_SYNC_FLUSH)) {
-                // CAUTION! If set to the endPosition + 1, the CRC check will fail, I don't know why.
-                self.currentPosition = endPosition;
+            var mode = isAnythingLeft ? pako.Z_SYNC_FLUSH : true;
+            if (self.compressor.push(chunkArray, mode)) {
+                self.currentPosition = endPosition + 1;
                 callback(null, {
                     data: self.compressor.result,
                     lastByteRead: endPosition,
                     isAnythingLeft: isAnythingLeft
                 });
-                if (!isAnythingLeft) {
-                    self.compressor.push([], pako.Z_STREAM_END);
-                }
             } else {
                 callback(new Error('Failed to decompress data.'));
             }
