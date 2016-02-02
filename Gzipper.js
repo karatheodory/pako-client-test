@@ -1,11 +1,18 @@
-Gunzipper = function (gzipFile, chunkSize) {
+Gzipper = function (gzipFileBlob, fileName, chunkSize) {
     var self = this;
 
-    self.file = gzipFile;
+    self.file = gzipFileBlob;
     self.chunkSize = chunkSize;
     self.currentPosition = 0;
     self.decompressor = new pako.Inflate({
         gzip: true
+    });
+    // TODO: Extract base and remove copy-paste.
+    self.compressor = new pako.Deflate({
+        gzip: true,
+        header: {
+            name: fileName
+        }
     });
 
     function convertBlobToUintArray(blob, callback) {
@@ -36,8 +43,8 @@ Gunzipper = function (gzipFile, chunkSize) {
                 // CAUTION! If set to the endPosition + 1, the CRC check will fail, I don't know why.
                 self.currentPosition = endPosition;
                 callback(null, {
-                    decompressedData: self.decompressor.result,
-                    totalBytesRead: endPosition,
+                    data: self.decompressor.result,
+                    lastByteRead: endPosition,
                     isAnythingLeft: isAnythingLeft
                 });
                 if (!isAnythingLeft) {
@@ -48,4 +55,35 @@ Gunzipper = function (gzipFile, chunkSize) {
             }
         });
     };
+
+    self.compress = function (numChunks, callback) {
+        var file = self.file;
+        var lastByteNumber = file.size - 1;
+        var currentPosition = self.currentPosition;
+
+        var endPosition = currentPosition + numChunks * self.chunkSize;
+        if (endPosition > lastByteNumber) {
+            endPosition = lastByteNumber;
+        }
+        var isAnythingLeft = endPosition !== lastByteNumber;
+        console.log('Reading chunk from ' + currentPosition + ' to ' + endPosition);
+        console.log('have' + (isAnythingLeft ? '' : ' nothing') + ' more');
+        var chunkBlob = file.slice(currentPosition, endPosition);
+        convertBlobToUintArray(chunkBlob, function (error, chunkArray) {
+            if (self.compressor.push(chunkArray, pako.Z_SYNC_FLUSH)) {
+                // CAUTION! If set to the endPosition + 1, the CRC check will fail, I don't know why.
+                self.currentPosition = endPosition;
+                callback(null, {
+                    data: self.compressor.result,
+                    lastByteRead: endPosition,
+                    isAnythingLeft: isAnythingLeft
+                });
+                if (!isAnythingLeft) {
+                    self.compressor.push([], pako.Z_STREAM_END);
+                }
+            } else {
+                callback(new Error('Failed to decompress data.'));
+            }
+        });
+    }
 };

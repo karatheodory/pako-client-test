@@ -3,34 +3,6 @@ if (!window.File && window.FileReader && window.FileList && window.Blob) {
     alert('The File APIs are not fully supported in this browser.');
 }
 
-var Compressor = function() {
-    var self = this;
-    this.compressor = new pako.Deflate({
-        gzip: true
-    });
-
-    self.compressor.onEnd(function (status) {
-        if (status !== pako.Z_OK) {
-            console.log('Compression error: ' + status);
-        }
-
-        self.lastError = status;
-    });
-    self.compressor.onData(function(chunk) {
-        console.log('Received chunk!');
-    });
-
-    self.compressChunk = function(chunk, isEndChunk) {
-        const mode = isEndChunk ? pako.Z_STREAM_END : pako.Z_SYNC_FLUSH;
-        if (self.compressor.push(chunk, mode)) {
-            return self.compressor.result;
-        } else {
-            console.log('Error compressing data');
-            return null;
-        }
-    };
-};
-
 function putFileStringsToOutput(stringArray) {
     var resultHtml = '';
     stringArray.forEach(function (str) {
@@ -44,33 +16,58 @@ function putFileStringsToOutput(stringArray) {
     document.getElementById('fileContents').innerHTML = resultHtml;
 }
 
-function processFile(file) {
+function createGzipLink(uintArrayData, fileName) {
+    var blob = new Blob(uintArrayData, {
+        type: 'application/gzip'
+    });
+    var url = URL.createObjectURL(blob);
+
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = fileName + '.gz';
+    link.innerHTML = 'Download file';
+    document.getElementById('list').appendChild(link);
+}
+
+function processFile(file, isDecompressing) {
     console.log('Processing file of ' + file.length + ' bytes.');
-    var gunzipper = new Gunzipper(file, 1024);
-    var resultStrings = [];
+    console.log('Doing ' + isDecompressing ? 'decompression':'compression');
+
+    var gzip = new Gzipper(file, file.name, 1024);
+    var methodName = isDecompressing ? 'decompress' : 'compress';
+    var decompressionResultStrings = [];
+    var compressionArrays = [];
 
     // Reads file recursively.
     var readCallback = function(error, result) {
         if (error) {
             alert(error);
         } else {
-            var data = result.decompressedData;
-            var dataString = String.fromCharCode.apply(null, new Uint16Array(data));
-            resultStrings.push(dataString);
+            var data = result.data;
+            if (isDecompressing) {
+                var dataString = String.fromCharCode.apply(null, new Uint16Array(data));
+                decompressionResultStrings.push(dataString);
+            } else {
+                compressionArrays.push(data);
+            }
 
             if (result.isAnythingLeft) {
                 setTimeout(function () {
-                    gunzipper.decompress(2, readCallback);
+                    gzip[methodName](2, readCallback);
                 })
             } else {
                 console.log('Read completed');
-                putFileStringsToOutput(resultStrings);
+                if (isDecompressing) {
+                    putFileStringsToOutput(decompressionResultStrings);
+                } else {
+                    var jointArray = Array.prototype.concat.apply(compressionArrays[0], compressionArrays.slice(1));
+                    createGzipLink(jointArray, file.name);
+                }
             }
         }
     };
 
-    gunzipper.decompress(1, readCallback);
-    putFileStringsToOutput(resultStrings)
+    gzip[methodName](1, readCallback);
 }
 
 function onFileListChanged(e) {
@@ -82,7 +79,9 @@ function onFileListChanged(e) {
             f.size, ' bytes, last modified: ',
             f.lastModifiedDate.toLocaleDateString(), '</li>');
         if (f.name.endsWith('txt.gz')) {
-            processFile(f);
+            processFile(f, true);
+        } else {
+            processFile(f, false);
         }
     }
     document.getElementById('list').innerHTML = '<ul>' + outHtml.join('') + '</ul>';
