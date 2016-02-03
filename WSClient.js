@@ -64,6 +64,11 @@ class WSClient {
                         }
                     });
                 });
+            },
+            (callback) => {
+                // Indicate the file end.
+                this.socket.close();
+                callback();
             }
         ], callback);
     }

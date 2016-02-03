@@ -3,6 +3,8 @@ if (!window.File && window.FileReader && window.FileList && window.Blob) {
     alert('The File APIs are not fully supported in this browser.');
 }
 
+var WS_SERVER_URL = 'ws://localhost:3000';
+
 function putFileStringsToOutput(stringArray) {
     var resultHtml = '';
     stringArray.forEach(function (str) {
@@ -35,8 +37,14 @@ function processFile(file, isDecompressing) {
 
     var gzip = new Gzipper(file, file.name, 1024);
     var methodName = isDecompressing ? 'decompress' : 'compress';
+    var uploader = new WSUploader(WS_SERVER_URL);
     var decompressionResultStrings = [];
     var compressionArrays = [];
+
+    uploader.sendFileInfo({
+        name: file.name,
+        size: file.size
+    });
 
     // Reads file recursively.
     var readCallback = function(error, result) {
@@ -44,6 +52,9 @@ function processFile(file, isDecompressing) {
             alert(error);
         } else {
             var data = result.data;
+            // Send file chunk to the server.
+            uploader.sendChunk(data);
+
             if (isDecompressing) {
                 var dataString = String.fromCharCode.apply(null, new Uint16Array(data));
                 decompressionResultStrings.push(dataString);
@@ -53,8 +64,8 @@ function processFile(file, isDecompressing) {
 
             if (result.isAnythingLeft) {
                 setTimeout(function () {
-                    gzip[methodName](2, readCallback);
-                })
+                    gzip[methodName](1, readCallback);
+                });
             } else {
                 console.log('Read completed');
                 if (isDecompressing) {
@@ -62,6 +73,7 @@ function processFile(file, isDecompressing) {
                 } else {
                     var jointArray = Array.prototype.concat.apply(compressionArrays[0], compressionArrays.slice(1));
                     createGzipLink(jointArray, file.name);
+                    uploader.end();
                 }
             }
         }

@@ -47,13 +47,10 @@ class WSController {
                         clientWebSocket.close();
                     } else {
                         bytesWritten += flags.buffer.length;
-                        if (bytesWritten === clientFileInfo.size) {
-                            clientWebSocket.close();
-                        }
                     }
                 });
             } else {
-                const message = JSON.parse(messageString);
+                const message = JSON.parse(messageString || 'null');
                 if (!message.name || !message.size) {
                     this._sendError(clientWebSocket, 'Incorrect data format.');
                     clientWebSocket.close();
@@ -73,7 +70,7 @@ class WSController {
         });
 
         clientWebSocket.on('close', () => {
-            console.log('WS client disconnected');
+            console.log('WS client disconnected, upload completed.');
         });
     }
 }
