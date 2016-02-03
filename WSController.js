@@ -18,11 +18,12 @@ class WSController {
         console.log('Error: ', message);
         clientWebSocket.send(JSON.stringify({
             message
-        }));
+        }), (error) => {
+            console.error('Error sending message to client: ' + JSON.stringify(error));
+        });
     }
 
     _handleClientConnection(clientWebSocket) {
-        const binaryData = [];
         let bytesWritten = 0;
         const clientFileInfo = {
             localFileName: null,
@@ -30,7 +31,7 @@ class WSController {
             size: null
         };
         let isUploadStarted = false;
-        clientWebSocket.on('message', (message, flags) => {
+        clientWebSocket.on('message', (messageString, flags) => {
             // flags.binary will be set if a binary data is received.
             // flags.masked will be set if the data was masked.
             console.log('Client message received');
@@ -40,20 +41,19 @@ class WSController {
                     clientWebSocket.close();
                 }
                 console.log('binary data');
-                fs.appendFile(__dirname + '/uploads', flags.buffer, {}, (error) => {
+                fs.appendFile(__dirname + '/uploads/' + clientFileInfo.localFileName, flags.buffer, {}, (error) => {
                     if (error) {
-                        this._sendError(clientWebSocket);
+                        this._sendError(clientWebSocket, error);
                         clientWebSocket.close();
                     } else {
-                        bytesWritten += flags.buffer.size;
+                        bytesWritten += flags.buffer.length;
                         if (bytesWritten === clientFileInfo.size) {
                             clientWebSocket.close();
                         }
                     }
                 });
-                binaryData.push(flags.buffer);
             } else {
-                const obj = JSON.parse(message);
+                const message = JSON.parse(messageString);
                 if (!message.name || !message.size) {
                     this._sendError(clientWebSocket, 'Incorrect data format.');
                     clientWebSocket.close();
@@ -63,7 +63,7 @@ class WSController {
                     // TODO: don't use original name as file name in production.
                     clientFileInfo.localFileName = message.name + Uuid.v4();
                     isUploadStarted = true;
-                    console.log('string data', JSON.stringify(obj, null, 2));
+                    console.log('string data', JSON.stringify(message, null, 2));
                 }
             }
         });
@@ -74,8 +74,6 @@ class WSController {
 
         clientWebSocket.on('close', () => {
             console.log('WS client disconnected');
-            const totalData = Buffer.concat(binaryData);
-            fs.writeFileSync('result.bin', totalData);
         });
     }
 }
