@@ -12,6 +12,7 @@ const httpServer = Http.createServer();
 const app = new Express();
 
 app.use('/', Express.static('./public'));
+app.use('/lib', Express.static('./bower_components'));
 
 const webSocketServer = new WebSocketServer({
     server: httpServer
