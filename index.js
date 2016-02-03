@@ -1,46 +1,28 @@
 'use strict';
 
-const Express = require('express'),
-    Http = require('http'),
-    Formidable = require('formidable'),
-    fs = require('fs'),
-    Path = require('path');
+const Express = require('express');
+const Http = require('http');
+const WebSocketServer = require('ws').Server;
 
+const WSController = require('./WSController');
+
+const PORT = 3000;
+
+const httpServer = Http.createServer();
 const app = new Express();
 
-app.use('/', Express.static('./'));
+app.use('/', Express.static('./public'));
 
-app.post('/upload', (request, response) => {
-    const form = new Formidable.IncomingForm();
-    form.parse(request, (error, fields, files) => {
-        // `file` is the name of the <input> field of type `file`
-        var oldPath = files.file.path,
-            fileSize = files.file.size,
-            originalFileName = files.file.name,
-            fileExt = originalFileName.split('.').pop(),
-            index = oldPath.lastIndexOf('/') + 1,
-            fileName = oldPath.substr(index),
-            newPath = Path.join(__dirname, '/uploads/', fileName + '.' + fileExt);
-        console.log('Started upload: ' + originalFileName + ', size: ' + fileSize + ' bytes');
-
-        fs.readFile(oldPath, (err, data) => {
-            fs.writeFile(newPath, data, (err) => {
-                fs.unlink(oldPath, (err) => {
-                    if (err) {
-                        response
-                            .status(500)
-                            .json({'success': false});
-                    } else {
-                        response
-                            .status(200)
-                            .json({'success': true});
-                    }
-                });
-            });
-        });
-    });
+const webSocketServer = new WebSocketServer({
+    server: httpServer
 });
+const wsController = new WSController();
 
-app.listen(3000, () => {
-    console.log('Server is started on port 3000');
+wsController.addWebSocketServerCallbacks(webSocketServer);
+httpServer.on('request', app);
+httpServer.listen(PORT, function() {
+    const host = httpServer.address().address;
+    const port = httpServer.address().port;
+
+    console.log('The server is started on http://%s:%s', host, port);
 });
