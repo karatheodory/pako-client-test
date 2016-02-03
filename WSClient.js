@@ -38,9 +38,11 @@ class WSClient {
                 // Send file info first.
                 const fileInfo = {
                     id: Uuid.v4(), // Session id.
-                    sample_id: fileDescriptor.name,
-                    size: fileDescriptor.size,
-                    method: 'v1.upload_file'
+                    method: 'v1.upload_file',
+                    params:{
+                        sample_id: fileDescriptor.name,
+                        size: fileDescriptor.size
+                    }
                 };
                 const fileInfoString = JSON.stringify(fileInfo);
                 this.socket.send(fileInfoString, (error) => {

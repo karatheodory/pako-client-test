@@ -51,11 +51,12 @@ class WSController {
                 });
             } else {
                 const message = JSON.parse(messageString || 'null');
-                if (!message.sample_id || !message.size) {
+                if (!message.params
+                    || !message.params.sample_id
+                    || !message.params.size) {
                     this._sendError(clientWebSocket, 'Incorrect data format.');
                     clientWebSocket.close();
                 } else {
-                    clientFileInfo.size = message.size;
                     clientFileInfo.name = message.sample_id;
                     // TODO: don't use original name as file name in production.
                     clientFileInfo.localFileName = clientFileInfo.name + Uuid.v4();
