@@ -38,7 +38,7 @@ class WSClient {
                 // Send file info first.
                 const fileInfo = {
                     id: Uuid.v4(), // Session id.
-                    name: fileDescriptor.name,
+                    sample_id: fileDescriptor.name,
                     size: fileDescriptor.size
                 };
                 const fileInfoString = JSON.stringify(fileInfo);
